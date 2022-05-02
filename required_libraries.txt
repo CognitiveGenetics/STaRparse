@@ -1,0 +1,12 @@
+stringr
+plyr
+optparse
+reshape2
+dplyr
+plyr
+json
+pandas
+glob
+os
+subprocess
+pyvcf
