@@ -12,13 +12,18 @@ def ExpansionHunter(vcffiles, output, savename):
     print("###############     IMPORTING VCF DATA     ###############")
 
     count = 0
-
-    f = open(output+"CGG_Repeats_"+savename+".csv","w+")
+    # output is directory. 
+    try:
+       os.makedirs(output,exist_ok=True)
+    except Exception as e:
+       print(f"Could not make output directory : {repr(e)}")
+       raise e
+    f = open(os.path.join(output,f"Repeats_{savename}.csv"),"w+")
     f.write('Call,Sample_ID,Chr,Start,End,GT,Ref_Units,Allele1_Units,Allele2_Units'.replace(',', '\t'))
     f.close()
 
     for x in vcffiles:
-        f = open(output+"CGG_Repeats_"+savename+".csv","a+")
+        f = open(os.path.join(output,f"Repeats_{savename}.csv"),"a+")
         count += 1
         base = os.path.splitext(os.path.basename(x))[0]
         print("Processing VCF file: ", base, "\tFile no.: ", count)

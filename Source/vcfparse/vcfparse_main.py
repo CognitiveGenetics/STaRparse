@@ -6,12 +6,12 @@ import glob, pandas
     #	OUTPUT FUNCTION
 def Output(vcf_data, output, savename):
     df = pandas.DataFrame(vcf_data)
-    df.to_csv(output+"CGG_Repeats_" + savename  + ".csv", sep='\t', index=None, header=True)
-    print("Output CSV file can be found at: "+output+"CGG_Repeats_" + savename  + ".csv")
+    df.to_csv(output+"Repeats_" + savename  + ".csv", sep='\t', index=None, header=True)
+    print("Output CSV file can be found at: "+output+"Repeats_" + savename  + ".csv")
     print("###############     COMPLETE     ###############")
 
     #	MAIN FUNCTION
-def main(vcfinput, output, savename, globdir):
+def main(vcfinput, output, savename):
     #	CHECK FILE PATHS
     if output[-1] != "/":
         output += "/"

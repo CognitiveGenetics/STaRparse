@@ -1,4 +1,4 @@
-by_locus = function(df, output, savename, build){
+by_locus = function(df, output, savename, build, humandb, globdir){
   #     Housekeeping
   df$All1 <- ifelse(df$All1 == 0, df$All2, df$All1)
   df$All2 <- ifelse(df$All2 == 0, df$All1, df$All2)
@@ -7,7 +7,7 @@ by_locus = function(df, output, savename, build){
   df$avealleles <- (df$All1+df$All2)/2
   
   #     Summarize
-  mdata <- melt(df[c("Call_ID", "All2", "All2")], id="Call_ID")
+  mdata <- melt(df[c("Call_ID", "All1", "All2")], id="Call_ID")
   medi <- aggregate(list("Median" = mdata$value), by=list("Call_ID" = mdata$Call_ID), median)
   medi <- medi[order(medi$Call_ID),]
   df <- merge(df,medi,by="Call_ID")
@@ -29,17 +29,23 @@ by_locus = function(df, output, savename, build){
   rm(df)
   compile <- Reduce(function(x, y) merge(x, y, all=TRUE), list(ref, avera, medi, minreps[c("Call_ID", "min")], maxreps[c("Call_ID", "max")], counts, stability, stddev, ee50, ee100))
   compile$Status <- ifelse(compile$Stab == 0, "STABLE", "POLYMORPHIC")
- 
   #     Annotate Repeats
-  anno_dir <- paste0(output, "/Annonvar")
-  system(paste0("mkdir ", anno_dir))
+  anno_dir <- paste0(output, "/Annovar")
+  if (!dir.exists(anno_dir)) {
+    system(paste0("mkdir ", anno_dir))
+  }
   anno_out <- paste0(anno_dir, "/", savename)
   anno <- compile[c("Chr", "Start")]
   anno$End <- (anno$Start)+(3*compile$Ref_Units-1)
   anno$RA <- 0
   anno$AA <- "-"
   write.table(anno, paste0(anno_out, "_Anno.csv"), quote = FALSE, col.names = FALSE, row.names = FALSE, sep="\t")
-  system(paste0("perl /home/dannear/Binaries/annovar/annotate_variation.pl -out ", anno_dir, "/", savename,  "_Annovar -build ", paste0("hg", build)," ", anno_out, "_Anno.csv /home/dannear/Binaries/annovar/humandb"))
+  # mk command explicit.
+  perl_script = file.path(globdir,"Source", "summaries", "annotate_variation.pl")
+  outfile_prefix = file.path(anno_dir,paste0(savename,"_Annovar"))
+  outfile_name = paste0(anno_out,"_Anno.csv")
+  cmd = paste("perl", perl_script, "--geneanno", "--outfile", outfile_prefix, "--buildver", paste0("hg", build), outfile_name, humandb)
+  system(cmd)
   genes <- read.csv(paste0(anno_out, "_Annovar.variant_function"), sep = '\t', header = FALSE)
   genes$V1 <- revalue(genes$V1, c("upstream;downstream"="intergenic", "splicing"="intronic", "ncRNA_exonic"="ncRNA", "ncRNA_intronic"="ncRNA"))
   genes$V2 <- gsub("\\s*\\([^\\)]+\\)", "", genes$V2)
@@ -63,8 +69,17 @@ ratio_of_stability = function(df, output) {
   df$Med_Units <- round(df$Med_Units)
   unstable_reps <- subset(df, df$Status != "STABLE")
   stable_reps <- subset(df, df$Status == "STABLE")
-  count_stable <- aggregate(list("Stable_Reps"=stable_reps$Med_Units), by = list("Med_Units"=stable_reps$Med_Units), FUN = length)
-  count_unstable <- aggregate(list("Unstable_Reps"=unstable_reps$Mean_Units), by = list("Med_Units"=unstable_reps$Med_Units), FUN = length)
+  if (nrow(stable_reps) == 0) {
+    count_stable <- data.frame(Med_Units = numeric(), Stable_Reps = numeric())
+  } else {
+    count_stable <- aggregate(list("Stable_Reps"=stable_reps$Med_Units), by = list("Med_Units"=stable_reps$Med_Units), FUN = length)
+  } 
+  if (nrow(unstable_reps) == 0) {
+    count_unstable <- data.frame(Med_Units = numeric(), Unstable_Reps = numeric())
+  } else {
+    count_unstable <- aggregate(list("Unstable_Reps"=unstable_reps$Mean_Units), by = list("Med_Units"=unstable_reps$Med_Units), FUN = length)
+  }
+  
   count_total <- merge(count_stable, count_unstable, all = TRUE)
   count_total[is.na(count_total)] <- 0
   count_total$Total_Reps <- count_total$Stable_Reps+count_total$Unstable_Reps
@@ -74,19 +89,22 @@ ratio_of_stability = function(df, output) {
 }
 
 by_sample = function(df, locus, output){
-  df <- merge(df, locus[c("Call_ID", "Med_Units", "Mean_Units", "SD")], by="Call_ID")
+  # POPULATION BASED
+  df <- merge(df, locus[c("Call_ID", "Med_Units", "Mean_Units", "SD","Instability_Rating","Status", "Gene", "Region")], by="Call_ID")  
   poly <- subset(df, df$All1 != Med_Units | df$All2 != Med_Units)
   pa <- aggregate(poly$Sample_ID, by = list(poly$Sample_ID), FUN = length)
   a <- aggregate(df$Sample_ID, by = list(df$Sample_ID), FUN = length)
   b <- aggregate((All1+All2)/2 ~Sample_ID, data = df, FUN = mean)
-  mdata <- melt(df[c("Sample_ID", "All2", "All2")], id="Sample_ID")
+  mdata <- melt(df[c("Sample_ID", "All1", "All2")], id="Sample_ID")
   c <- aggregate(mdata$value, by = list(mdata$Sample_ID), FUN = max)
   z <- data.frame("Sample_ID"=a$Group.1, "Highest_Repeat"=c$x, "Total_Repeats"=a$x, "Mean_Rep_length"=round(b$"(All1 + All2)/2", 2), "Unstable_Reps"=pa$x, "Percentage_Unstable_Reps"=round((pa$x/a$x*100), 2))
   z <- z[order(z$Sample_ID),]
   write.table(z, paste0(output, "_by_sample.csv"), quote = FALSE, col.names = TRUE, row.names = FALSE, sep="\t")
+
 }
 
 by_chr = function(df, locus, output){
+  # TODO : use a genome dict for this
   if (grepl("chr", as.character(df$Chr[1]), fixed = TRUE) == F){chrmbp <- data.frame("Chr"=c( as.character(c(1:22)),"X","Y"), "Mbp"=c(249,237,192,183,174,165,153,135,132,132,132,123,108,105,99,84,81,75,69,63,54,57,141,60))}
   else if (grepl("chr", as.character(df$Chr[1]), fixed = TRUE) == T) {chrmbp <- data.frame("Chr"=c( paste0("chr", as.character(c(1:22))),"chrX","chrY"), "Mbp"=c(249,237,192,183,174,165,153,135,132,132,132,123,108,105,99,84,81,75,69,63,54,57,141,60))}
   tot <- aggregate(list("Total_Reps"=locus$Chr), by = list("Chr"=locus$Chr), FUN = length)

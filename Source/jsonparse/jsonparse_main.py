@@ -4,7 +4,7 @@
 import json, pandas as pd, glob, os
 
 #    DEFINE MAIN FUNCTION
-def main(input_path, output_path, savename, globdir):
+def main(input_path, output_path, savename):
     #           ENSURE CORRECT FILE PATH
     if output_path[-1] != "/": output_path += "/"
     if input_path[-1] != "/": input_path += "/"
@@ -17,7 +17,7 @@ def main(input_path, output_path, savename, globdir):
         print("WARNING:   There are no .json files in this directory")
         exit(1)
     #    INITIALIZE STOREAGE FILE
-    f = open(output_path+"ReadCoverage_"+savename+".csv", 'w+')
+    f = open(os.path.join(output_path,f"ReadCoverage_{savename}.csv"), 'w+')
     f.write("Sample_ID,Call_ID,MaxSpanningRead,MaxFlankingRead,MaxInrepeatRead".replace(',', '\t'))
     f.close()
     count=0
